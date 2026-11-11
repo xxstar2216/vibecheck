@@ -6,6 +6,8 @@ VibeCheck 是一个“会自我验收”的 AI 应用生成器：输入一句话
 
 它不是一个“生成完就结束”的 Demo：验收标准被前置到生成流程，测试结果会变成可复用的质量报告和 Playwright 用例。
 
+> 在线体验：https://expulsion-lifting-urging.ngrok-free.dev （ngrok 免费版首次打开点 **Visit Site**）  
+> 源码：https://github.com/xxstar2216/vibecheck  
 > 面向 HR / 非技术读者的简版介绍：[docs/PROJECT-INTRO.md](docs/PROJECT-INTRO.md)
 
 ## 与 Atoms 的关系
@@ -109,6 +111,8 @@ npm run check:llm
 它会验证 base URL、模型 ID 和 key 是否匹配，只打印脱敏后的 key；如果模型不存在，会直接显示服务商返回的错误。
 
 ## 部署到 Vercel
+
+> 当前在线演示通过 ngrok 隧道暴露本地服务；下面是可选的 Vercel 生产部署步骤。
 
 1. 把 `vibecheck` 推到 GitHub（建议使用独立 public 仓库）
 2. 在 Vercel 导入仓库；若仓库根目录不是应用目录，Root Directory 选 `vibecheck`

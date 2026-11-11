@@ -1,8 +1,8 @@
 # VibeCheck 设计说明
 
-> 在线体验：`<部署后填写>`  
-> 源码：`<GitHub 链接>`  
-> 提交人：`<你的名字>`
+> 在线体验：https://expulsion-lifting-urging.ngrok-free.dev  
+> 源码：https://github.com/xxstar2216/vibecheck  
+> 提交人：`pxx`
 
 ## 1. 一句话定位
 
@@ -47,7 +47,7 @@
 - **预览**：`iframe srcdoc`，`sandbox="allow-scripts allow-forms"`（不透明源）
 - **验收**：独立的离屏 iframe（1024×768）注入 runner，通过 `postMessage` 回传结果
 - **存储**：IndexedDB（项目 / 版本 / 生成应用数据），无登录
-- **部署**：Vercel
+- **部署**：本地 Next.js 服务 + ngrok 隧道（演示）；生产可部署 Vercel / 香港 VPS
 
 ```
 Browser

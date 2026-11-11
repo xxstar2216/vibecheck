@@ -6,12 +6,12 @@
 
 | 项目信息 |  |
 | --- | --- |
-| 在线体验 | `<部署后填写>` |
-| 源码 | `<GitHub 链接>` |
+| 在线体验 | https://expulsion-lifting-urging.ngrok-free.dev |
+| 源码 | https://github.com/xxstar2216/vibecheck |
 | 演示视频 | `<可选>` |
 | 技术栈 | Next.js 15 · React 19 · TypeScript · Tailwind CSS 4 · DeepSeek Flash · IndexedDB |
 | 当前状态 | 可运行原型；真实模型端到端验证通过 |
-| 提交人 | `<你的名字>` |
+| 提交人 | `pxx` |
 
 ---
 

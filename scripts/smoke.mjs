@@ -4,7 +4,10 @@ const url = process.env.APP_URL || "http://localhost:3000";
 const edge = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 
 const browser = await chromium.launch({ headless: true, executablePath: edge });
-const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+  extraHTTPHeaders: { "ngrok-skip-browser-warning": "true" },
+});
 const page = await context.newPage();
 const errors = [];
 
