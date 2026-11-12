@@ -32,16 +32,18 @@ VibeCheck 是独立实现：不调用 Atoms API、不嵌入 Atoms、不使用其
 
 ## 功能
 
-- **Agent 流水线**：Spec → Code → Test → Repair，界面完整展示 Agent Trace
+- **多角色 Agent**：Spec / Build / QA / Gate；生成前可确认/修改 Spec，生成后给后续建议
 - **质量门禁**：运行时错误、验收通过率、可访问性、韧性四类检查
 - **自动修复 + 手动继续修复**：失败后带结构化失败报告自动修复一次；仍不达标可在质量报告里一键继续修复
 - **质量报告可复制**：一键复制 Markdown 摘要，直接贴进文档或聊天
 - **隔离沙箱**：`sandbox="allow-scripts allow-forms"`（不含 `allow-same-origin`），生成代码无法访问父页面
-- **安全存储桥**：生成代码通过 `window.__atoms.storage` 持久化，父页面用 IndexedDB 落盘
+- **安全存储桥**：生成代码通过 `window.__atoms.storage` 持久化，父页面用 IndexedDB / 服务端落盘
 - **版本管理**：生成 / 修改 / 自动修复 / 模板都会留下版本，可回看代码与报告
+- **代码管理**：在线编辑代码、保存为新版本、版本 diff、ZIP 导出（HTML / 报告 / Playwright）
+- **分享与预览**：公开分享页 + 二维码；新标签页、全屏预览
+- **访客 + 可选账号**：不登录即可使用；注册/登录后项目/版本/报告存服务端 SQLite，跨浏览器继续
 - **预置模板**：待办、习惯打卡、极简记账；**不配置模型 Key 也能完整体验质量门禁**
-- **零登录**：项目与生成数据只存在浏览器 IndexedDB
-- **可交付物**：HTML、报告 JSON、Playwright `.spec.ts` 一键导出
+- **可交付物**：HTML、报告 JSON、Playwright `.spec.ts`、ZIP、分享页
 
 ![Preview](docs/screenshots/03-preview.png)
 
@@ -62,8 +64,10 @@ VibeCheck 是独立实现：不调用 Atoms API、不嵌入 Atoms、不使用其
 - **后端**：Next.js Route Handlers（Node.js），流式返回
 - **模型**：任意兼容 OpenAI Chat Completions 的服务（默认 DeepSeek）
 - **沙箱**：`iframe srcdoc` + 不透明源 sandbox + postMessage
-- **存储**：IndexedDB（项目 / 版本 / 生成应用数据）
-- **部署**：Vercel
+- **认证**：邮箱 + 密码（scrypt）+ HttpOnly 会话 Cookie
+- **存储**：访客用 IndexedDB；登录用户用服务端 SQLite（`node:sqlite`）保存项目 / 版本 / 报告
+- **分享**：公开快照页 `/share/[id]` + 二维码
+- **部署**：本地 / 香港 VPS（SQLite 需要持久磁盘）；Vercel Serverless 需改用 Postgres
 
 ```mermaid
 flowchart LR
@@ -76,7 +80,9 @@ flowchart LR
   W --> T[验收执行器 iframe]
   T -->|postMessage 验收结果| W
   W --> Q[质量报告]
-  W --> DB[(IndexedDB)]
+  W -->|访客| IDB[(IndexedDB)]
+  W -->|登录| DB[(SQLite 用户 / 项目 / 分享)]
+  W -->|分享| SH[/share/:id]
 ```
 
 ## 快速开始
@@ -91,7 +97,8 @@ npm run dev
 
 打开 <http://localhost:3000>。
 
-> 没有 API Key 也可以直接点三个预置模板，完整走一遍“沙箱验收 → 质量报告 → 版本”的流程。
+> 没有 API Key 也可以直接点三个预置模板，完整走一遍“沙箱验收 → 质量报告 → 版本”的流程。  
+> 不登录也能使用全部生成能力；登录后项目会写入 `data/vibecheck.db`，跨浏览器继续（该目录已 gitignore）。
 
 ### 环境变量
 
@@ -110,16 +117,24 @@ npm run check:llm
 
 它会验证 base URL、模型 ID 和 key 是否匹配，只打印脱敏后的 key；如果模型不存在，会直接显示服务商返回的错误。
 
-## 部署到 Vercel
+## 部署
 
-> 当前在线演示通过 ngrok 隧道暴露本地服务；下面是可选的 Vercel 生产部署步骤。
+> 当前在线演示通过 ngrok 隧道暴露本地服务。账号和项目使用服务端 SQLite，需要一个**持久磁盘**。
 
-1. 把 `vibecheck` 推到 GitHub（建议使用独立 public 仓库）
-2. 在 Vercel 导入仓库；若仓库根目录不是应用目录，Root Directory 选 `vibecheck`
-3. 配置 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`
-4. Deploy
+**本地 / 香港 VPS（推荐，SQLite 可用）**
 
-> 当前限流是进程内内存实现，适合 Demo；生产环境应换成 Upstash Redis 等共享存储。
+```bash
+npm ci
+# 配置 .env.local
+npm run build
+npm start
+```
+
+**Vercel（可选）**
+
+Vercel Serverless 的文件系统不持久，直接使用 SQLite 会丢数据；需要把 `src/lib/db.ts` 换成 Postgres / Supabase 等托管数据库。当前 Demo 的演示链接走 ngrok + 本地服务。
+
+> 限流是进程内内存实现，适合 Demo；生产环境应换成 Upstash Redis 等共享存储。
 
 ## 安全设计
 
@@ -141,6 +156,8 @@ npm run smoke:templates  # 另外两个模板 + 移动端溢出检查
 npm run smoke:generation # 浏览器内 mock，验证生成 → 失败 → 自动修复 → 通过
 npm run smoke:real       # 真实模型端到端（需要 .env.local + 运行中的服务）
 npm run smoke:repair     # mock 模型：失败 → 一键继续修复 → 通过
+npm run smoke:v2         # 注册/登录 → 云持久化 → 代码编辑/diff/ZIP → 分享 → 登出/再登录
+npm run smoke:spec       # mock 模型：Spec 确认 → 多角色 Agent → 自动修复 → 通过
 ```
 
 还可以用本地 mock LLM 验证**真实服务端链路**（含 SSE 流式解析）：
@@ -159,6 +176,10 @@ Smoke 脚本使用本机 Edge（`playwright-core`，不下载浏览器）。如�
 
 - 3 个预置模板均 100 分通过
 - 真实模型 `deepseek-flash`：待办 prompt，约 76s，首版未通过 → 自动修复 1 次 → **100/100（7/7 项验收）**
+- **账号**：注册 → 登录 → 登出 → 再登录；访客模式可用；登录后项目写服务端 SQLite，刷新/重登仍在
+- **代码管理**：在线编辑 → 保存并重新验收 → 新版本 → 版本 diff → ZIP 下载
+- **分享/预览**：分享页 + 二维码 + 新标签页 + 全屏预览
+- **Agent**：Spec 确认 → Spec/Build/QA/Gate 多角色 Trace → 自动修复 → 通过（mock 模型）
 - 沙箱内添加数据后刷新预览，数据仍在
 - 移动端 390px 无横向溢出
 - 最终版本零运行时错误；如果控制台里看到首版的报错，那是被自动修复替换掉的临时版本
@@ -166,19 +187,24 @@ Smoke 脚本使用本机 Edge（`playwright-core`，不下载浏览器）。如�
 ## 目录结构
 
 ```
-src/app/api/          # spec / generate / repair / health
-src/components/       # Workspace、ChatPanel、QualityPanel、PreviewFrame ...
+src/app/api/          # spec / generate / repair / health / auth / projects / share
+src/app/login/        # 登录 / 注册
+src/app/share/[id]/   # 公开分享页
+src/components/       # Workspace、ChatPanel、CodePanel、QualityPanel、PreviewFrame、ShareModal ...
 src/lib/quality.ts    # 沙箱探针、测试 harness、静态检查、评分、Playwright 导出
-src/lib/storage.ts    # IndexedDB
+src/lib/db.ts         # SQLite schema：users / sessions / projects / shares
+src/lib/auth.ts       # scrypt 密码哈希 + HttpOnly 会话
+src/lib/storage.ts    # 访客 IndexedDB + 登录用户服务端项目同步
 src/lib/demoApps.ts   # 3 个预置模板
 src/lib/prompts.ts    # Spec / Code / Repair 提示词
+data/                 # SQLite 数据（已 gitignore）
 scripts/              # Playwright smoke 与截图脚本
 docs/                 # 设计说明与截图
 ```
 
 ## 已知限制与下一步
 
-**已做**：生成、迭代、版本、质量门禁、自动修复、3 个模板、导出、移动端、无 Key 演示模式。
+**已做**：生成、迭代、版本、质量门禁、自动修复、3 个模板、导出、移动端、无 Key 演示模式；访客 + 可选账号、云持久化、代码编辑/diff/ZIP、分享页/二维码、多角色 Agent + Spec 确认。
 
 **没做 / 限制**：
 
@@ -186,13 +212,15 @@ docs/                 # 设计说明与截图
 - 浏览器内 mini-runner 的可信度低于真实 Playwright（换来零基础设施）
 - 自动修复只做 1 轮（控制成本与延迟）
 - 失败的首版不会进入版本历史，只保留最终版本与 Agent Trace 证据
-- 限流是单实例内存实现；无分享链接 / 多人协作
+- 分享是公开快照：没有权限管理、撤回、密码
+- 账号没有邮箱验证、找回密码、第三方登录
+- SQLite 是单实例文件库，适合本地 / VPS；Vercel Serverless 需换 Postgres
 - 编辑时复用原验收标准做回归，暂不自动扩展新验收项
 
 **下一步优先级**：
 
 - P0：20 条 golden prompt 的评估集 + 回归看板；把 Playwright 用例接入 CI
-- P1：多文件工程 + WebContainer；修复轮次的 diff 展示；分享链接
+- P1：多文件工程 + WebContainer；分享权限/撤回；邮箱验证
 - P2：视觉回归、模型 A/B、单次成功生成成本、线上遥测
 
 详见 [docs/DESIGN.md](docs/DESIGN.md)。

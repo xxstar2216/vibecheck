@@ -27,7 +27,10 @@ export function formatMs(ms: number): string {
 }
 
 export function download(filename: string, content: string, type = "text/plain;charset=utf-8"): void {
-  const blob = new Blob([content], { type });
+  downloadBlob(filename, new Blob([content], { type }));
+}
+
+export function downloadBlob(filename: string, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

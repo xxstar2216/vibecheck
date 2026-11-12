@@ -13,11 +13,16 @@
     "smoke:generation": "node scripts/smoke-generation.mjs",
     "smoke:real": "node scripts/smoke-real.mjs",
     "smoke:repair": "node scripts/smoke-repair-button.mjs",
+    "smoke:v2": "node scripts/smoke-v2.mjs",
+    "smoke:spec": "node scripts/smoke-spec.mjs",
     "check:llm": "node scripts/check-llm.mjs"
   },
   "dependencies": {
+    "diff": "^9.0.0",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.72.0",
     "next": "15.5.29",
+    "qrcode.react": "^4.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

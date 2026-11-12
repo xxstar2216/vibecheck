@@ -42,28 +42,34 @@
 ## 4. 架构
 
 - **前端**：Next.js 15 App Router + React 19 + TypeScript + Tailwind 4
-- **服务端**：Route Handlers（`/api/spec`、`/api/generate`、`/api/repair`、`/api/health`）
+- **服务端**：Route Handlers（`/api/spec`、`/api/generate`、`/api/repair`、`/api/health`、`/api/auth/*`、`/api/projects`、`/api/share`）
+- **认证**：邮箱 + 密码（scrypt）+ HttpOnly 会话 Cookie；访客模式免登录
 - **模型**：任意 OpenAI Chat Completions 兼容服务，默认 DeepSeek；密钥只在服务端
 - **预览**：`iframe srcdoc`，`sandbox="allow-scripts allow-forms"`（不透明源）
 - **验收**：独立的离屏 iframe（1024×768）注入 runner，通过 `postMessage` 回传结果
-- **存储**：IndexedDB（项目 / 版本 / 生成应用数据），无登录
-- **部署**：本地 Next.js 服务 + ngrok 隧道（演示）；生产可部署 Vercel / 香港 VPS
+- **存储**：访客用 IndexedDB；登录用户用服务端 SQLite（`node:sqlite`）保存项目 / 版本 / 报告
+- **分享**：公开快照页 `/share/[id]` + 二维码
+- **部署**：本地 / 香港 VPS（SQLite 需要持久磁盘）；Vercel Serverless 需换 Postgres
 
 ```
 Browser
 ├─ Workspace (state machine + Agent Trace)
-│  ├─ ChatPanel            ← 需求 / Trace / 消息
+│  ├─ ChatPanel            ← 需求 / Trace / 消息 / Spec 确认
 │  ├─ QualityPanel         ← 分数 / 证据 / 导出
+│  ├─ CodePanel            ← 代码 / 编辑 / diff / ZIP
 │  ├─ PreviewFrame         ← 可见预览（注入错误探针 + 存储桥）
-│  └─ TestRunnerFrame      ← 离屏验收 iframe（注入 harness）
-├─ IndexedDB               ← projects / versions / appData
+│  ├─ TestRunnerFrame      ← 离屏验收 iframe（注入 harness）
+│  └─ ShareModal           ← 分享页 / 二维码 / 新标签 / 全屏
+├─ IndexedDB               ← 访客 projects / versions / appData
 └─ postMessage             ← storage-get/set/remove、atoms-tests-complete
 
 Server (Next.js Route Handlers)
-├─ /api/spec    → JSON spec + checks
-├─ /api/generate→ stream HTML（新建 / 编辑）
-├─ /api/repair  → stream HTML（带失败报告）
-└─ /api/health  → 是否配置模型
+├─ /api/spec /generate /repair → 模型流水线
+├─ /api/auth/*        → 注册 / 登录 / 登出 / me
+├─ /api/projects      → 登录用户项目/版本读写
+├─ /api/share         → 公开分享快照
+└─ /api/health        → 是否配置模型
+SQLite (node:sqlite)  → users / sessions / projects / shares / app_data
 ```
 
 ## 5. 关键决策
@@ -118,6 +124,26 @@ Server (Next.js Route Handlers)
 
 **收益**：单次生成的成本与时间可控；编辑不会悄悄丢掉旧能力。下一步可以加“按 diff 扩展验收标准”和“带预算的多轮修复”。
 
+### ADR-6 访客 + 可选账号
+
+**背景**：笔试原文说“无需注册功能”，但面试评分表把“注册登录”作为独立项并给了 0/5。正确解法不是争论口径，而是同时满足两边。
+
+**决策**：默认访客模式，所有生成/验收/预览能力不登录可用；登录是可选增强，登录后项目/版本/报告写服务端 SQLite，跨浏览器继续。
+
+**代价**：需要维护两套存储路径（IndexedDB / 服务端）；账号体系增加了会话、密码哈希和权限校验。
+
+**收益**：不登录也能完整体验（满足原文），评分表能看到真实的注册/登录/会话/登出；项目持久化从“本机”升级为“账号级”。
+
+### ADR-7 服务端 SQLite 持久化
+
+**背景**：原来的 IndexedDB 只能证明“刷新不丢”，不能证明“换浏览器/换设备还能继续”，评分表的数据持久化只给 3/5。
+
+**决策**：用 Node 24 内置的 `node:sqlite` 建 users / sessions / projects / shares / app_data；登录用户的项目以 JSON 存 `projects` 表，分享用 `shares` 快照表。
+
+**代价**：SQLite 是单实例文件库，需要持久磁盘；Vercel Serverless 不能直接用，要换 Postgres。账号没有邮箱验证/找回密码/第三方登录。
+
+**收益**：注册 → 创建项目 → 刷新/重登/换浏览器都能恢复；分享是公开快照，不依赖登录；零外部数据库依赖，适合本地/VPS 演示。
+
 ## 6. 质量评分规则
 
 | 维度 | 权重 | 规则 |
@@ -140,6 +166,16 @@ Server (Next.js Route Handlers)
 - 端到端约 76s（含两次生成 + 两次沙箱验收）
 - 最终版本在独立沙箱复测：零控制台错误，刷新后数据仍在
 
+**v2 补强（2026-11-12，根据面试反馈）**
+
+- 注册登录：访客 + 可选邮箱账号；注册/登录/登出/会话；登录后项目云端同步
+- 数据持久化：服务端 SQLite 保存项目/版本/报告；换浏览器、重登可继续
+- 代码管理：在线编辑、保存为新版本、版本 diff、ZIP 导出（HTML/报告/Playwright）
+- 产物预览：公开分享页 + 二维码 + 新标签页 + 全屏
+- Agent 交互：Spec/Build/QA/Gate 多角色；生成前 Spec 确认；生成后后续建议
+- 页面：登录页、账号态、Agent 团队条、完整预览工具栏
+- 验证：`smoke:v2` 与 `smoke:spec` 全过，控制台零错误；3 个模板仍 100/100
+
 **已完成**
 
 - 生成 / 编辑 / 版本 / 回滚查看
@@ -149,7 +185,10 @@ Server (Next.js Route Handlers)
 - 质量报告 Markdown 摘要一键复制
 - 沙箱隔离 + 存储桥 + 刷新持久化
 - 3 个预置模板（无 Key 可体验）
-- 导出 HTML / 报告 JSON / Playwright
+- 导出 HTML / 报告 JSON / Playwright / ZIP
+- 访客 + 可选账号；服务端 SQLite 云持久化
+- 在线编辑 / 版本 diff / 分享页 / 二维码 / 全屏 / 新标签页
+- 多角色 Agent + Spec 确认 + 后续建议
 - 移动端可用、错误态、空状态、流式生成、停止生成
 - 服务端 Key、每 IP 限额、静态检查
 
@@ -158,7 +197,10 @@ Server (Next.js Route Handlers)
 - 失败的首版不入版本历史，只保留最终版本与 Trace 证据
 - 编辑不自动扩展验收标准
 - 限流是单实例内存实现
-- 没有分享链接、多人协作、真实部署生成物
+- 分享是公开快照：没有权限管理、撤回、密码
+- 账号没有邮箱验证、找回密码、第三方登录
+- SQLite 是单实例文件库，适合本地/VPS；Serverless 需换 Postgres
+- 没有多人协作、真实部署生成物
 - 单文件生成，不支持多文件工程与依赖
 
 ## 8. 下一步优先级
@@ -172,7 +214,7 @@ Server (Next.js Route Handlers)
 **P1（一周）**
 
 4. 多文件工程 + WebContainer 预览
-5. 分享链接（只读报告 + 应用快照）
+5. 分享权限/撤回；邮箱验证
 6. 用 Upstash Redis 替换内存限流，加成本看板
 
 **P2（持续）**

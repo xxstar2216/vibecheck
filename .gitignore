@@ -47,3 +47,6 @@ next-env.d.ts
 # local submission notes
 /docs/*.local.md
 /scripts/*.html
+
+# local server database
+/data/

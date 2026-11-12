@@ -7,8 +7,17 @@ const APP_DATA = "appData";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let memoryOnly = false;
+let serverMode = false;
 const memoryProjects = new Map<string, Project>();
 const memoryAppData = new Map<string, unknown>();
+
+export function setServerMode(value: boolean): void {
+  serverMode = value;
+}
+
+export function isServerMode(): boolean {
+  return serverMode;
+}
 
 function openDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === "undefined") {
@@ -53,7 +62,7 @@ function sortProjects(list: Project[]): Project[] {
   return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export async function listProjects(): Promise<Project[]> {
+export async function listLocalProjects(): Promise<Project[]> {
   if (!memoryOnly) {
     try {
       const all = await withStore<Project[]>(PROJECTS, "readonly", (s) => s.getAll());
@@ -65,7 +74,38 @@ export async function listProjects(): Promise<Project[]> {
   return sortProjects(Array.from(memoryProjects.values()));
 }
 
+export async function listProjects(): Promise<Project[]> {
+  if (serverMode) {
+    try {
+      const res = await fetch("/api/projects", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      const data = (await res.json()) as { projects?: Project[] };
+      return sortProjects(Array.isArray(data.projects) ? data.projects : []);
+    } catch {
+      return [];
+    }
+  }
+  return listLocalProjects();
+}
+
 export async function saveProject(project: Project): Promise<void> {
+  if (serverMode) {
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ project }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+      throw new Error(data.message || data.error || "云端保存失败");
+    }
+    return;
+  }
+
   if (!memoryOnly) {
     try {
       await withStore(PROJECTS, "readwrite", (s) => s.put(project));
@@ -98,6 +138,17 @@ async function deleteAppDataForProject(projectId: string): Promise<void> {
 }
 
 export async function deleteProject(id: string): Promise<void> {
+  if (serverMode) {
+    try {
+      await fetch(`/api/projects?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+    } catch {
+      // local cleanup still runs below
+    }
+  }
+
   if (!memoryOnly) {
     try {
       await withStore(PROJECTS, "readwrite", (s) => s.delete(id));

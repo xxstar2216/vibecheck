@@ -1,26 +1,37 @@
 "use client";
 
+import Link from "next/link";
 import {
   ArrowRight,
   ChevronRight,
+  Cloud,
   Code2,
+  ExternalLink,
   Eye,
+  HardDrive,
   History,
   Loader2,
+  LogIn,
+  LogOut,
+  Maximize2,
+  Minimize2,
   Monitor,
   Play,
   Plus,
   RefreshCw,
+  Share2,
   ShieldCheck,
   Smartphone,
   Sparkles,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuth } from "./AuthProvider";
 import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { PreviewFrame, TestRunnerFrame } from "./PreviewFrame";
 import { QualityPanel } from "./QualityPanel";
+import { ShareModal } from "./ShareModal";
 import { Sidebar } from "./Sidebar";
 import { VersionsPanel } from "./VersionsPanel";
 import { DEMO_APPS, type DemoApp } from "@/lib/demoApps";
@@ -28,10 +39,12 @@ import { buildReport, cleanGeneratedCode, toPlaywright } from "@/lib/quality";
 import {
   deleteProject,
   getAppValue,
+  listLocalProjects,
   listProjects,
   removeAppValue,
   saveProject,
   setAppValue,
+  setServerMode,
 } from "@/lib/storage";
 import type {
   AcceptanceCheck,
@@ -221,12 +234,22 @@ export function Workspace() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [repairing, setRepairing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [pendingSpec, setPendingSpec] = useState<AppSpec | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const { user, loading: authLoading, logout } = useAuth();
 
   const pendingTests = useRef(new Map<string, (outcome: TestOutcome) => void>());
   const activeProjectId = useRef<string | null>(null);
   const runningRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const abortedRef = useRef(false);
+  const specResolver = useRef<(() => void) | null>(null);
+  const specPromptRef = useRef("");
 
   const patchTrace = useCallback((id: string, patch: Partial<TraceStep>) => {
     setTrace((current) => current.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -235,6 +258,10 @@ export function Workspace() {
   const loadProject = useCallback((p: Project) => {
     setProject(p);
     activeProjectId.current = p.id;
+    setPendingSpec(null);
+    specResolver.current = null;
+    setShareOpen(false);
+    setFullscreen(false);
     const v =
       p.versions.find((x) => x.id === p.currentVersionId) ??
       p.versions[p.versions.length - 1] ??
@@ -247,6 +274,9 @@ export function Workspace() {
     setTrace([]);
     setPhase("idle");
     setTab("preview");
+    setSuggestions(
+      v ? ["增加筛选功能", "换成深色主题", "加一个统计卡片"] : [],
+    );
     setMessages(
       v
         ? [
@@ -261,11 +291,6 @@ export function Workspace() {
 
   useEffect(() => {
     let cancelled = false;
-    listProjects().then((ps) => {
-      if (cancelled) return;
-      setProjects(ps);
-      if (ps.length > 0) loadProject(ps[0]);
-    });
     fetch("/api/health")
       .then((r) => r.json())
       .then((d: { configured?: boolean; model?: string | null }) => {
@@ -279,7 +304,38 @@ export function Workspace() {
     return () => {
       cancelled = true;
     };
-  }, [loadProject]);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    setServerMode(Boolean(user));
+    let cancelled = false;
+    listProjects()
+      .then((ps) => {
+        if (cancelled) return;
+        setProjects(ps);
+        if (ps.length > 0) {
+          loadProject(ps[0]);
+        } else {
+          setProject(null);
+          setVersion(null);
+          setStreamCode("");
+          setPreviewCode("");
+          setMessages([]);
+          setTrace([]);
+          setError(null);
+          setTab("preview");
+          setPhase("idle");
+          activeProjectId.current = null;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, loadProject]);
 
   useEffect(() => {
     async function onMessage(event: MessageEvent) {
@@ -336,6 +392,7 @@ export function Workspace() {
   }, []);
 
   const handleNew = useCallback(() => {
+    if (runningRef.current) return;
     setProject(null);
     setVersion(null);
     setStreamCode("");
@@ -347,18 +404,46 @@ export function Workspace() {
     setTab("preview");
     setPhase("idle");
     setPrompt("");
+    setPendingSpec(null);
+    setSuggestions([]);
+    setShareOpen(false);
+    setFullscreen(false);
+    specResolver.current = null;
     activeProjectId.current = null;
   }, []);
 
   const handleDelete = useCallback(
     async (p: Project) => {
-      if (!window.confirm(`删除「${p.name}」？本地数据会一并清除。`)) return;
+      if (runningRef.current) return;
+      if (!window.confirm(`删除「${p.name}」？数据会一并清除。`)) return;
       await deleteProject(p.id);
       if (project?.id === p.id) handleNew();
       await refreshProjects();
     },
     [project, handleNew, refreshProjects],
   );
+
+  const handleImportLocal = useCallback(async () => {
+    if (!user || runningRef.current) return;
+    const locals = await listLocalProjects();
+    if (locals.length === 0) {
+      setError("没有本地访客项目可导入。");
+      return;
+    }
+    setServerMode(true);
+    try {
+      for (const localProject of locals) {
+        await saveProject(localProject);
+      }
+      await refreshProjects();
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", text: `已导入 ${locals.length} 个本地项目到账号。` },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "导入本地项目失败。");
+    }
+  }, [user, refreshProjects]);
 
   const runTests = useCallback(
     (code: string, checks: AcceptanceCheck[]): Promise<TestOutcome> => {
@@ -416,16 +501,12 @@ export function Workspace() {
       setTrace([
         {
           id: "spec",
-          label: edit ? "读取现有规格与验收标准" : "拆解需求，生成验收标准",
+          label: edit ? "Spec Agent · 产品经理（回归）" : "Spec Agent · 产品经理",
           status: "running",
         },
-        {
-          id: "code",
-          label: edit ? "按指令修改应用" : "编写应用代码",
-          status: "pending",
-        },
-        { id: "test", label: "沙箱运行 + 自动验收", status: "pending" },
-        { id: "gate", label: "质量门禁判定", status: "pending" },
+        { id: "code", label: "Build Agent · 工程师", status: "pending" },
+        { id: "test", label: "QA Agent · 测试", status: "pending" },
+        { id: "gate", label: "Gate · 发布", status: "pending" },
       ]);
       setMessages((m) => [...m, { role: "user", text }]);
       setTab("preview");
@@ -468,9 +549,28 @@ export function Workspace() {
           const data = (await res.json()) as { spec: AppSpec };
           spec = data.spec;
           base = null;
+          specPromptRef.current = text;
           patchTrace("spec", {
             status: "done",
-            detail: `${spec.checks.length} 条验收标准 · ${spec.name}`,
+            detail: `${spec.checks.length} 条验收标准 · 等待确认`,
+          });
+          setPendingSpec(spec);
+          setMessages((m) => [
+            ...m,
+            {
+              role: "assistant",
+              text: `我先拆了 ${spec.checks.length} 条验收标准，确认后开始写代码。`,
+            },
+          ]);
+          await new Promise<void>((resolve) => {
+            specResolver.current = resolve;
+          });
+          specResolver.current = null;
+          setPendingSpec(null);
+          ensureActive();
+          patchTrace("spec", {
+            status: "done",
+            detail: `${spec.checks.length} 条验收标准 · 已确认`,
           });
         }
         ensureActive();
@@ -607,6 +707,11 @@ export function Workspace() {
               : `「${spec.name}」未通过质量门禁：${report.score}/100。已保留版本与失败证据，可以继续对话修复，或查看质量报告。`,
           },
         ]);
+        setSuggestions(
+          report.passed
+            ? ["增加筛选功能", "换成深色主题", "加一个统计卡片"]
+            : ["简化功能，先保证通过", "继续修复所有未通过项"],
+        );
       } catch (err) {
         const name = (err as { name?: string })?.name;
         if (name === "AbortError") {
@@ -651,9 +756,9 @@ export function Workspace() {
     setPhase("working");
     setError(null);
     setTrace([
-      { id: "repair", label: "根据失败报告修复", status: "running" },
-      { id: "test", label: "重新运行自动验收", status: "pending" },
-      { id: "gate", label: "质量门禁判定", status: "pending" },
+      { id: "repair", label: "QA Agent · 根据失败报告修复", status: "running" },
+      { id: "test", label: "QA Agent · 重新验收", status: "pending" },
+      { id: "gate", label: "Gate · 发布", status: "pending" },
     ]);
     setMessages((m) => [...m, { role: "user", text: "继续修复所有未通过项" }]);
     setTab("quality");
@@ -749,6 +854,11 @@ export function Workspace() {
             : `继续修复后仍未通过：${report.score}/100。可以再点一次「继续修复」，或在对话里补充更具体的约束。`,
         },
       ]);
+      setSuggestions(
+        report.passed
+          ? ["增加筛选功能", "换成深色主题", "加一个统计卡片"]
+          : ["简化功能，先保证通过", "继续修复所有未通过项"],
+      );
     } catch (err) {
       const name = (err as { name?: string })?.name;
       if (name === "AbortError") {
@@ -774,6 +884,92 @@ export function Workspace() {
     }
   }, [configured, evaluate, patchTrace, persist, project, version]);
 
+  const handleSaveCode = useCallback(
+    async (newCode: string) => {
+      if (!project || !version || runningRef.current) return;
+      if (!/<html[\s>]/i.test(newCode)) {
+        const message = "代码需要是完整的 HTML 文档。";
+        setError(message);
+        throw new Error(message);
+      }
+
+      runningRef.current = true;
+      setSavingEdit(true);
+      setPhase("working");
+      setError(null);
+      setTrace([
+        { id: "edit", label: "Build Agent · 手动修改", status: "running" },
+        { id: "test", label: "QA Agent · 重新验收", status: "pending" },
+        { id: "gate", label: "Gate · 发布", status: "pending" },
+      ]);
+
+      try {
+        const report = await evaluate(newCode, version.spec);
+        patchTrace("edit", { status: "done", detail: "代码已更新" });
+        patchTrace("test", {
+          status: "done",
+          detail: `${report.checkResults.filter((r) => r.status === "pass").length}/${report.checkResults.length} 项通过`,
+        });
+        patchTrace("gate", {
+          status: report.passed ? "done" : "fail",
+          detail: `质量分 ${report.score}`,
+        });
+
+        const index =
+          (project.versions[project.versions.length - 1]?.index ?? 0) + 1;
+        const newVersion: Version = {
+          id: uid(),
+          index,
+          code: newCode,
+          spec: version.spec,
+          report,
+          createdAt: Date.now(),
+          source: "edit",
+          note: "手动编辑",
+        };
+        const updated: Project = {
+          ...project,
+          versions: [...project.versions, newVersion],
+          currentVersionId: newVersion.id,
+          updatedAt: Date.now(),
+        };
+
+        setProject(updated);
+        setVersion(newVersion);
+        setStreamCode(newCode);
+        setPreviewCode(newCode);
+        await persist(updated);
+        setTab("quality");
+        setSuggestions(
+          report.passed
+            ? ["增加筛选功能", "换成深色主题", "加一个统计卡片"]
+            : ["简化功能，先保证通过", "继续修复所有未通过项"],
+        );
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: `手动编辑已保存为 v${newVersion.index}，质量分 ${report.score}/100${
+              report.passed ? "，通过门禁" : "，未通过门禁"
+            }。`,
+          },
+        ]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        setTrace((t) =>
+          t.map((s) => (s.status === "running" ? { ...s, status: "fail" } : s)),
+        );
+        throw err;
+      } finally {
+        runningRef.current = false;
+        setSavingEdit(false);
+        setPhase("idle");
+      }
+    },
+    [project, version, evaluate, patchTrace, persist],
+  );
+
   const loadTemplate = useCallback(
     async (demo: DemoApp) => {
       if (runningRef.current) return;
@@ -786,8 +982,8 @@ export function Workspace() {
       setPreviewCode(demo.code);
       setTrace([
         { id: "template", label: `载入模板「${demo.title}」`, status: "running" },
-        { id: "test", label: "沙箱运行 + 自动验收", status: "pending" },
-        { id: "gate", label: "质量门禁判定", status: "pending" },
+        { id: "test", label: "QA Agent · 沙箱验收", status: "pending" },
+        { id: "gate", label: "Gate · 发布", status: "pending" },
       ]);
       setMessages([{ role: "user", text: demo.prompt }]);
       setTab("preview");
@@ -855,6 +1051,11 @@ export function Workspace() {
               : `已载入「${demo.title}」，质量分 ${report.score}/100，未通过门禁。`,
           },
         ]);
+        setSuggestions([
+          "增加筛选功能",
+          "换成深色主题",
+          "加一个统计卡片",
+        ]);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);
@@ -901,12 +1102,36 @@ export function Workspace() {
   const handleStop = useCallback(() => {
     abortedRef.current = true;
     abortRef.current?.abort();
+    specResolver.current?.();
+    specResolver.current = null;
+    setPendingSpec(null);
     for (const [id, resolve] of Array.from(pendingTests.current.entries())) {
       pendingTests.current.delete(id);
       resolve({ results: [], a11y: [], errors: [], timedOut: true });
     }
     setTestRequest(null);
   }, []);
+
+  const handleConfirmSpec = useCallback(() => {
+    specResolver.current?.();
+    specResolver.current = null;
+  }, []);
+
+  const handleCancelSpec = useCallback(() => {
+    if (pendingSpec) setPrompt(specPromptRef.current);
+    abortedRef.current = true;
+    specResolver.current?.();
+    specResolver.current = null;
+    setPendingSpec(null);
+  }, [pendingSpec]);
+
+  const handleSuggestion = useCallback(
+    (text: string) => {
+      if (runningRef.current) return;
+      void run(text, Boolean(project && version));
+    },
+    [run, project, version],
+  );
 
   const viewedCode = previewCode || version?.code || "";
   const activeReport = version?.report ?? null;
@@ -940,6 +1165,57 @@ export function Workspace() {
     );
   }, [activeReport, activeSpec, appName, version]);
 
+  const versionIndex =
+    project?.versions.findIndex((v) => v.id === version?.id) ?? -1;
+  const previousCode =
+    project && versionIndex > 0 ? project.versions[versionIndex - 1].code : null;
+
+  const createShare = useCallback(async (): Promise<string | null> => {
+    if (!viewedCode || sharing) return null;
+    setSharing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: appName,
+          code: viewedCode,
+          spec: activeSpec,
+          report: activeReport,
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        throw new Error(data.message || data.error || "分享失败");
+      }
+      const data = (await res.json()) as { id: string };
+      const url = `${window.location.origin}/share/${data.id}`;
+      setShareUrl(url);
+      return url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "分享失败");
+      return null;
+    } finally {
+      setSharing(false);
+    }
+  }, [viewedCode, appName, activeSpec, activeReport, sharing]);
+
+  const handleShare = useCallback(async () => {
+    const url = await createShare();
+    if (url) setShareOpen(true);
+  }, [createShare]);
+
+  const handleOpenTab = useCallback(async () => {
+    const popup = window.open("", "_blank");
+    const url = await createShare();
+    if (url && popup) popup.location.href = url;
+    else if (popup) popup.close();
+  }, [createShare]);
+
   const tabs = [
     { id: "preview" as const, label: "预览", icon: Eye },
     { id: "quality" as const, label: "质量报告", icon: ShieldCheck },
@@ -963,6 +1239,45 @@ export function Workspace() {
           <Zap className="h-2.5 w-2.5 text-accent" /> Quality Gate
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {authLoading ? (
+            <span className="hidden items-center gap-1 text-[10px] text-faint sm:flex">
+              账号…
+            </span>
+          ) : user ? (
+            <div className="flex items-center gap-0.5">
+              <span className="hidden max-w-[150px] items-center gap-1 truncate rounded-full border border-line bg-panel2 px-2 py-0.5 text-[10px] text-muted sm:flex">
+                <Cloud className="h-2.5 w-2.5 text-accent" />
+                {user.name || user.email}
+              </span>
+              <button
+                onClick={() => void handleImportLocal()}
+                className="hidden rounded-md px-1.5 py-1 text-[10px] text-muted transition hover:text-ink sm:block"
+                title="把本地访客项目导入账号"
+              >
+                导入本地
+              </button>
+              <button
+                onClick={() => void logout()}
+                aria-label="退出登录"
+                className="rounded-md p-1.5 text-muted transition hover:text-ink"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <span className="hidden items-center gap-1 rounded-full border border-line bg-panel2 px-2 py-0.5 text-[10px] text-muted sm:flex">
+                <HardDrive className="h-2.5 w-2.5" /> 访客
+              </span>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1 rounded-lg border border-accent/25 bg-accent/10 px-2 py-1.5 text-[10.5px] text-accent transition hover:bg-accent/15"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                登录 / 注册
+              </Link>
+            </div>
+          )}
           <span
             className={cn(
               "hidden max-w-[160px] items-center gap-1.5 truncate rounded-full border px-2 py-0.5 text-[10px] sm:flex",
@@ -996,7 +1311,9 @@ export function Workspace() {
         <Sidebar
           projects={projects}
           currentId={project?.id ?? null}
-          onSelect={loadProject}
+          onSelect={(p) => {
+            if (!runningRef.current) loadProject(p);
+          }}
           onNew={handleNew}
           onDelete={handleDelete}
         />
@@ -1015,6 +1332,11 @@ export function Workspace() {
           onTemplate={loadTemplate}
           onDismissError={() => setError(null)}
           hasProject={Boolean(project && version)}
+          pendingSpec={pendingSpec}
+          onConfirmSpec={handleConfirmSpec}
+          onCancelSpec={handleCancelSpec}
+          suggestions={suggestions}
+          onSuggestion={handleSuggestion}
         />
 
         <main className="flex min-h-0 flex-1 flex-col">
@@ -1086,6 +1408,32 @@ export function Workspace() {
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                 </button>
+                <button
+                  onClick={handleShare}
+                  disabled={sharing}
+                  aria-label="分享预览"
+                  className="rounded-lg border border-line bg-panel2 p-1.5 text-faint transition hover:text-ink disabled:opacity-50"
+                >
+                  {sharing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Share2 className="h-3.5 w-3.5" />
+                  )}
+                </button>
+                <button
+                  onClick={handleOpenTab}
+                  aria-label="新标签页打开"
+                  className="rounded-lg border border-line bg-panel2 p-1.5 text-faint transition hover:text-ink"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setFullscreen(true)}
+                  aria-label="全屏预览"
+                  className="rounded-lg border border-line bg-panel2 p-1.5 text-faint transition hover:text-ink"
+                >
+                  <Maximize2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             )}
           </div>
@@ -1117,6 +1465,11 @@ export function Workspace() {
                 code={streamCode || viewedCode}
                 streaming={phase === "working"}
                 appName={appName}
+                spec={activeSpec}
+                report={activeReport}
+                previousCode={previousCode}
+                saving={savingEdit}
+                onSaveCode={handleSaveCode}
               />
             )}
 
@@ -1126,6 +1479,29 @@ export function Workspace() {
           </div>
         </main>
       </div>
+
+      {fullscreen && viewedCode && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#07080b]">
+          <div className="flex h-11 shrink-0 items-center gap-2 border-b border-line px-3">
+            <ShieldCheck className="h-4 w-4 text-accent" />
+            <span className="truncate text-xs text-muted">{appName} · 全屏预览</span>
+            <button
+              onClick={() => setFullscreen(false)}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel2 px-2.5 py-1.5 text-[11px] text-muted transition hover:text-ink"
+            >
+              <Minimize2 className="h-3.5 w-3.5" />
+              退出全屏
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <PreviewFrame code={viewedCode} device={device} reloadKey={reloadKey} />
+          </div>
+        </div>
+      )}
+
+      {shareOpen && shareUrl && (
+        <ShareModal url={shareUrl} onClose={() => setShareOpen(false)} />
+      )}
 
       <TestRunnerFrame request={testRequest} />
     </div>

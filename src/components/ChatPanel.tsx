@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DEMO_APPS, type DemoApp } from "@/lib/demoApps";
-import type { ChatMessage, TraceStatus, TraceStep } from "@/lib/types";
+import type { AppSpec, ChatMessage, TraceStatus, TraceStep } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function TraceIcon({ status }: { status: TraceStatus }) {
@@ -59,6 +59,11 @@ export function ChatPanel({
   onTemplate,
   onDismissError,
   hasProject,
+  pendingSpec,
+  onConfirmSpec,
+  onCancelSpec,
+  suggestions,
+  onSuggestion,
 }: {
   className?: string;
   messages: ChatMessage[];
@@ -73,6 +78,11 @@ export function ChatPanel({
   onTemplate: (demo: DemoApp) => void;
   onDismissError: () => void;
   hasProject: boolean;
+  pendingSpec: AppSpec | null;
+  onConfirmSpec: () => void;
+  onCancelSpec: () => void;
+  suggestions: string[];
+  onSuggestion: (text: string) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -99,8 +109,8 @@ export function ChatPanel({
         <span className="flex h-5 w-5 items-center justify-center rounded-md bg-accent/10">
           <Sparkles className="h-3 w-3 text-accent" />
         </span>
-        <span className="text-xs font-medium">Agent</span>
-        <span className="hidden text-[10px] text-faint sm:inline">生成 → 验收 → 修复</span>
+        <span className="text-xs font-medium">Agent Team</span>
+        <span className="hidden text-[10px] text-faint sm:inline">Spec → Build → QA → Gate</span>
         <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] text-muted">
           <span
             className={cn(
@@ -110,6 +120,23 @@ export function ChatPanel({
           />
           {phase === "working" ? "执行中" : "就绪"}
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1 border-b border-line px-3 py-1.5">
+        {[
+          ["Spec", "PM", "bg-accent"],
+          ["Build", "Eng", "bg-sky-400"],
+          ["QA", "Test", "bg-violet-400"],
+          ["Gate", "Release", "bg-warn"],
+        ].map(([role, label, color]) => (
+          <span
+            key={role}
+            className="inline-flex items-center gap-1 rounded-full border border-line bg-panel2 px-1.5 py-0.5 text-[9px] text-muted"
+          >
+            <span className={cn("h-1 w-1 rounded-full", color)} />
+            {role} · {label}
+          </span>
+        ))}
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto scrollbar-thin p-3">
@@ -196,6 +223,44 @@ export function ChatPanel({
         <div ref={endRef} />
       </div>
 
+      {pendingSpec && (
+        <div className="animate-rise mx-3 mb-2 rounded-xl border border-accent/25 bg-accent/[0.05] p-3">
+          <div className="flex items-center gap-1.5 text-[10px] text-accent">
+            <Sparkles className="h-3 w-3" />
+            Spec Agent · 等待确认
+          </div>
+          <div className="mt-1 text-xs font-medium text-ink">{pendingSpec.name}</div>
+          <p className="mt-0.5 text-[10.5px] leading-relaxed text-muted">
+            {pendingSpec.summary}
+          </p>
+          <div className="mt-2 space-y-1">
+            {pendingSpec.checks.map((check) => (
+              <div
+                key={check.id}
+                className="flex items-start gap-1.5 text-[10.5px] leading-relaxed text-ink/85"
+              >
+                <Check className="mt-0.5 h-2.5 w-2.5 shrink-0 text-accent" />
+                <span>{check.description}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <button
+              onClick={onConfirmSpec}
+              className="rounded-lg bg-accent px-2.5 py-1.5 text-[10.5px] font-semibold text-[#06231a] transition hover:brightness-105"
+            >
+              确认并生成代码
+            </button>
+            <button
+              onClick={onCancelSpec}
+              className="rounded-lg border border-line bg-panel2 px-2.5 py-1.5 text-[10.5px] text-muted transition hover:text-ink"
+            >
+              修改需求
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-danger/25 bg-danger/[0.07] px-2.5 py-2">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-danger" />
@@ -218,6 +283,20 @@ export function ChatPanel({
           <p className="text-[10.5px] leading-relaxed text-warn/90">
             未配置 LLM_API_KEY。你仍然可以打开上方模板，体验完整的生成后验收与质量报告。配置方式见 README。
           </p>
+        </div>
+      )}
+
+      {phase === "idle" && suggestions.length > 0 && !pendingSpec && (
+        <div className="flex flex-wrap gap-1 px-3 pb-2">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              onClick={() => onSuggestion(suggestion)}
+              className="rounded-full border border-line bg-panel2 px-2 py-1 text-[10px] text-muted transition hover:border-accent/30 hover:text-accent"
+            >
+              {suggestion}
+            </button>
+          ))}
         </div>
       )}
 
