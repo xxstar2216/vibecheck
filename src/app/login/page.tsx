@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Loader2, Lock, Mail, ShieldCheck, User } from "lucide-react";
+import { ArrowLeft, Loader2, Lock, Mail, ShieldCheck, Sparkles, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -10,7 +10,7 @@ type Mode = "login" | "register";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading, login, register, logout } = useAuth();
+  const { user, loading, login, register, logout, refresh } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +33,29 @@ export default function LoginPage() {
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "请求失败，请重试。");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function demoLogin() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/demo", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message || "演示账号登录失败，请重试。");
+      }
+      await refresh();
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "演示账号登录失败，请重试。");
     } finally {
       setSubmitting(false);
     }
@@ -185,8 +208,25 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <button
+            type="button"
+            onClick={() => void demoLogin()}
+            disabled={submitting}
+            className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-accent/25 bg-accent/5 text-[11px] text-accent transition hover:bg-accent/10 disabled:opacity-50"
+          >
+            {submitting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            使用演示账号（自动登录，体验云端保存）
+          </button>
+          <p className="mt-1.5 text-center text-[10px] text-faint">
+            演示账号：demo@vibecheck.dev / demo1234
+          </p>
+
           <p className="mt-4 text-center text-[10px] leading-relaxed text-faint">
-            不登录也可以直接体验全部生成与质量门禁能力。
+            访客可直接体验全部生成与质量门禁能力；登录后项目保存到云端。
           </p>
         </div>
       </div>

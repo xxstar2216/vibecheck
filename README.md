@@ -6,7 +6,7 @@ VibeCheck 是一个“会自我验收”的 AI 应用生成器：输入一句话
 
 它不是一个“生成完就结束”的 Demo：验收标准被前置到生成流程，测试结果会变成可复用的质量报告和 Playwright 用例。
 
-> 在线体验：https://expulsion-lifting-urging.ngrok-free.dev （ngrok 免费版首次打开点 **Visit Site**）  
+> 在线体验：https://expulsion-lifting-urging.ngrok-free.dev （ngrok 免费版首次打开点 **Visit Site**；登录页可一键使用演示账号）  
 > 源码：https://github.com/xxstar2216/vibecheck  
 > 面向 HR / 非技术读者的简版介绍：[docs/PROJECT-INTRO.md](docs/PROJECT-INTRO.md)
 
@@ -27,6 +27,15 @@ VibeCheck 是独立实现：不调用 Atoms API、不嵌入 Atoms、不使用其
 5. **门禁判定**：总分 ≥ 80 且零运行时错误才放行；不达标自动修复一次，仍不达标可在报告里一键继续修复
 6. **迭代**：继续对话修改，保留版本历史；修改时复用原验收标准做回归
 7. **交付**：导出 HTML、质量报告 JSON、Playwright 用例
+
+## 3 分钟评审路径
+
+1. **注册登录**：右上角「登录 / 注册」；登录页可一键使用演示账号（`demo@vibecheck.dev` / `demo1234`）。登录后项目保存到云端。
+2. **Agent 交互**：输入需求 → Spec Agent 给出验收标准 → 确认 → Build / QA / Gate。
+3. **数据持久化**：刷新页面；退出后重新登录（或换无痕窗口），项目仍在。
+4. **页面美观度**：预览页切换桌面 / 手机宽度；3 个模板卡片覆盖待办、打卡、记账。
+5. **代码管理**：代码 → 编辑 → 保存并验收；版本 → diff / 回滚；下载 ZIP。
+6. **产物预览**：预览 → 分享 → 新标签 / 全屏 / 二维码。
 
 ![Quality report](docs/screenshots/02-quality.png)
 

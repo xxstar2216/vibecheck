@@ -1,6 +1,7 @@
 "use client";
 
-import { Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Cloud, HardDrive, LogIn, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import Link from "next/link";
 import type { Project } from "@/lib/types";
 import { cn, timeAgo } from "@/lib/utils";
 
@@ -10,12 +11,14 @@ export function Sidebar({
   onSelect,
   onNew,
   onDelete,
+  signedIn,
 }: {
   projects: Project[];
   currentId: string | null;
   onSelect: (project: Project) => void;
   onNew: () => void;
   onDelete: (project: Project) => void;
+  signedIn: boolean;
 }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-line bg-panel/30 lg:flex">
@@ -36,7 +39,9 @@ export function Sidebar({
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto scrollbar-thin px-2 pb-3">
         {projects.length === 0 && (
           <p className="px-2 py-3 text-[11px] leading-relaxed text-faint">
-            还没有项目。生成一个应用，或打开右侧模板，项目会自动保存在本地。
+            {signedIn
+              ? "还没有项目。生成一个应用，或打开右侧模板；项目会保存到云端。"
+              : "还没有项目。生成一个应用，或打开右侧模板；访客模式保存在本机，登录后可云端保存。"}
           </p>
         )}
         {projects.map((p) => {
@@ -109,9 +114,26 @@ export function Sidebar({
           <ShieldCheck className="h-3 w-3 text-accent" />
           质量门禁 ≥ 80 才放行
         </div>
-        <p className="mt-1.5">
-          项目与生成数据仅保存在此浏览器 IndexedDB，不上传服务器。
-        </p>
+        <div className="mt-1.5 flex items-start gap-1">
+          {signedIn ? (
+            <Cloud className="mt-0.5 h-3 w-3 shrink-0 text-accent" />
+          ) : (
+            <HardDrive className="mt-0.5 h-3 w-3 shrink-0 text-faint" />
+          )}
+          <p>
+            {signedIn
+              ? "已登录：项目保存到云端 SQLite，换设备或重新登录都能恢复。"
+              : "访客模式：项目仅保存在本机浏览器。登录后可云端保存，换设备继续。"}
+          </p>
+        </div>
+        {!signedIn && (
+          <Link
+            href="/login"
+            className="mt-2 inline-flex items-center gap-1 text-accent transition hover:underline"
+          >
+            <LogIn className="h-3 w-3" /> 登录 / 注册，开启云端保存
+          </Link>
+        )}
       </div>
     </aside>
   );

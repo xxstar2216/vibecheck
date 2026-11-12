@@ -18,9 +18,12 @@ page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 page.on("pageerror", (e) => errors.push(e.message));
 
 await page.goto(base, { waitUntil: "networkidle" });
-console.log("guest header login:", await page.getByRole("link", { name: /登录 \/ 注册/ }).count());
+console.log(
+  "guest header login:",
+  await page.locator("header").getByRole("link", { name: /登录 \/ 注册/ }).count(),
+);
 
-await page.getByRole("link", { name: /登录 \/ 注册/ }).click();
+await page.locator("header").getByRole("link", { name: /登录 \/ 注册/ }).click();
 await page.waitForURL((u) => u.pathname === "/login", { timeout: 10000 });
 await page.getByRole("button", { name: "注册", exact: true }).click();
 await page.locator('input[autocomplete="nickname"]').fill(name);
@@ -104,10 +107,10 @@ console.log("new tab share:", popup.url().includes("/share/"));
 await popup.close();
 
 await page.getByLabel("退出登录").click();
-await page.getByRole("link", { name: /登录 \/ 注册/ }).waitFor({ timeout: 10000 });
+await page.locator("header").getByRole("link", { name: /登录 \/ 注册/ }).waitFor({ timeout: 10000 });
 console.log("logout -> guest");
 
-await page.getByRole("link", { name: /登录 \/ 注册/ }).click();
+await page.locator("header").getByRole("link", { name: /登录 \/ 注册/ }).click();
 await page.waitForURL((u) => u.pathname === "/login", { timeout: 10000 });
 await page.locator('input[type="email"]').fill(email);
 await page.locator('input[type="password"]').fill(password);

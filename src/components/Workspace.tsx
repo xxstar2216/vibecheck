@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Cloud,
   Code2,
+  Compass,
   ExternalLink,
   Eye,
   HardDrive,
@@ -31,6 +32,7 @@ import { ChatPanel } from "./ChatPanel";
 import { CodePanel } from "./CodePanel";
 import { PreviewFrame, TestRunnerFrame } from "./PreviewFrame";
 import { QualityPanel } from "./QualityPanel";
+import { ReviewGuide } from "./ReviewGuide";
 import { ShareModal } from "./ShareModal";
 import { Sidebar } from "./Sidebar";
 import { VersionsPanel } from "./VersionsPanel";
@@ -239,6 +241,7 @@ export function Workspace() {
   const [shareOpen, setShareOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [pendingSpec, setPendingSpec] = useState<AppSpec | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const { user, loading: authLoading, logout } = useAuth();
@@ -1239,13 +1242,25 @@ export function Workspace() {
           <Zap className="h-2.5 w-2.5 text-accent" /> Quality Gate
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            title="3 分钟评审导览"
+            className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel2 px-2 py-1.5 text-[10.5px] text-muted transition hover:border-accent/40 hover:text-ink"
+          >
+            <Compass className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">评审导览</span>
+          </button>
           {authLoading ? (
             <span className="hidden items-center gap-1 text-[10px] text-faint sm:flex">
               账号…
             </span>
           ) : user ? (
             <div className="flex items-center gap-0.5">
-              <span className="hidden max-w-[150px] items-center gap-1 truncate rounded-full border border-line bg-panel2 px-2 py-0.5 text-[10px] text-muted sm:flex">
+              <span
+                title="已登录：项目保存到云端"
+                className="hidden max-w-[150px] items-center gap-1 truncate rounded-full border border-line bg-panel2 px-2 py-0.5 text-[10px] text-muted sm:flex"
+              >
                 <Cloud className="h-2.5 w-2.5 text-accent" />
                 {user.name || user.email}
               </span>
@@ -1271,7 +1286,8 @@ export function Workspace() {
               </span>
               <Link
                 href="/login"
-                className="inline-flex items-center gap-1 rounded-lg border border-accent/25 bg-accent/10 px-2 py-1.5 text-[10.5px] text-accent transition hover:bg-accent/15"
+                title="登录后项目保存到云端，换设备可继续"
+                className="inline-flex items-center gap-1 rounded-lg border border-accent/25 bg-accent/10 px-2.5 py-1.5 text-[11px] text-accent transition hover:bg-accent/15"
               >
                 <LogIn className="h-3.5 w-3.5" />
                 登录 / 注册
@@ -1316,6 +1332,7 @@ export function Workspace() {
           }}
           onNew={handleNew}
           onDelete={handleDelete}
+          signedIn={Boolean(user)}
         />
 
         <ChatPanel
@@ -1412,13 +1429,15 @@ export function Workspace() {
                   onClick={handleShare}
                   disabled={sharing}
                   aria-label="分享预览"
-                  className="rounded-lg border border-line bg-panel2 p-1.5 text-faint transition hover:text-ink disabled:opacity-50"
+                  title="生成分享链接 / 二维码"
+                  className="inline-flex items-center gap-1 rounded-lg border border-line bg-panel2 px-2 py-1.5 text-[10.5px] text-faint transition hover:text-ink disabled:opacity-50"
                 >
                   {sharing ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Share2 className="h-3.5 w-3.5" />
                   )}
+                  <span className="hidden sm:inline">分享</span>
                 </button>
                 <button
                   onClick={handleOpenTab}
@@ -1502,6 +1521,34 @@ export function Workspace() {
       {shareOpen && shareUrl && (
         <ShareModal url={shareUrl} onClose={() => setShareOpen(false)} />
       )}
+
+      <ReviewGuide
+        open={guideOpen}
+        signedIn={Boolean(user)}
+        hasProject={Boolean(project)}
+        onClose={() => setGuideOpen(false)}
+        onLogin={() => {
+          setGuideOpen(false);
+          window.location.href = "/login";
+        }}
+        onNew={() => {
+          setGuideOpen(false);
+          handleNew();
+        }}
+        onTab={(nextTab) => {
+          setGuideOpen(false);
+          setTab(nextTab);
+        }}
+        onShare={() => {
+          setGuideOpen(false);
+          void handleShare();
+        }}
+        onMobile={() => {
+          setGuideOpen(false);
+          setTab("preview");
+          setDevice("mobile");
+        }}
+      />
 
       <TestRunnerFrame request={testRequest} />
     </div>
