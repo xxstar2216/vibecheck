@@ -112,7 +112,7 @@
     <span class="tag">描述</span> →
     <span class="tag">Spec Agent</span> 规格 + 4-6 条验收 →
     <span class="tag">Code Agent</span> 流式单文件 HTML →
-    <span class="tag">沙箱验收</span> 点击/输入/DOM/存储/运行时/A11y →
+    <span class="tag">沙箱验收</span> 点击/输入/DOM/存储/运行时/可访问性 →
     <span class="tag">质量门禁</span> ≥80 且零运行时错误 →
     <span class="tag">修复</span> 自动 1 次 / 一键继续 →
     <span class="tag">交付</span> HTML / 报告 / Playwright
@@ -125,9 +125,9 @@
     <div class="stat"><b>1×</b><span>自动修复后放行</span></div>
   </div>
 
-  <h2>根据面试反馈补强（v2）</h2>
+  <h2>产品能力</h2>
   <ul>
-    <li><strong>注册登录</strong>：访客 + 可选邮箱账号；注册/登录/登出/会话；登录后云端同步</li>
+    <li><strong>注册登录</strong>：访客 + 可选邮箱账号；注册/登录/登出/会话；登录后服务端同步</li>
     <li><strong>数据持久化</strong>：服务端 SQLite 项目/版本/报告；跨浏览器</li>
     <li><strong>代码管理</strong>：在线编辑、新版本、版本 diff、ZIP 导出</li>
     <li><strong>产物预览</strong>：分享页 + 二维码 + 新标签页 + 全屏</li>
@@ -142,7 +142,7 @@
     <tr><td>可访问性</td><td>15</td><td>表单可访问名、图片 alt、按钮可访问名、html lang</td></tr>
     <tr><td>韧性</td><td>15</td><td>完整文档、viewport、testid、存储桥、响应式、空状态、体积、外部依赖</td></tr>
   </table>
-  <p class="small"><strong>放行：总分 ≥ 80 且零运行时错误。</strong>运行时 + 验收占 70%，因为它们最直接影响“能不能用”；A11y 与韧性用于拉开质量差距。</p>
+  <p class="small"><strong>放行：总分 ≥ 80 且零运行时错误。</strong>运行时 + 验收占 70%，因为它们最直接影响“能不能用”；可访问性 与韧性用于拉开质量差距。</p>
 
   <h2>关键取舍</h2>
   <ul>
@@ -165,7 +165,7 @@
         <li>失败自动修复 + 一键继续修复</li>
         <li>报告摘要复制；HTML / 报告 / Playwright / ZIP 导出</li>
         <li>沙箱隔离 + 存储桥 + 刷新持久化；3 个模板</li>
-        <li>访客 + 可选账号；SQLite 云持久化；代码编辑/diff；分享页/二维码</li>
+        <li>访客 + 可选账号；SQLite 服务端持久化；代码编辑/diff；分享页/二维码</li>
       </ul>
     </div>
     <div class="box">
