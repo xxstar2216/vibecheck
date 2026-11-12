@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         ];
 
   try {
-    const stream = await streamChatCompletion(messages, { temperature: 0.5, maxTokens: 8000 });
+    const stream = await streamChatCompletion(messages, { temperature: 0.5, maxTokens: 16000 });
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",

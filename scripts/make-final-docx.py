@@ -36,6 +36,18 @@ REPLACEMENTS = [
         False,
     ),
     (
+        "• 真实模型 deepseek-flash：约 76 秒，首版未通过 → 自动修复 1 次 → 100/100，7/7 项验收通过。",
+        "• 真实模型 deepseek-flash：Spec 确认 → 生成 → 质量门禁 100/100，端到端约 42 秒；修复了 reasoning token 挤占 8K 输出预算导致的截断（提升到 16K 后复测通过）。",
+        11,
+        False,
+    ),
+    (
+        "限制：单文件生成、浏览器内 runner、只自动修 1 轮、分享无权限管理、SQLite 单实例、演示环境为临时隧道（评审期间保持在线）。",
+        "限制：单文件生成、浏览器内 runner、只自动修 1 轮、分享无权限管理、SQLite 单实例、演示环境为临时隧道（评审期间保持在线；首次加载可能较慢）。",
+        11,
+        False,
+    ),
+    (
         "九、v2 更新说明",
         "九、产品能力",
         16,
@@ -80,7 +92,7 @@ print(f"已生成 {DST}，替换 {changed} 段")
 
 check = Document(DST)
 text = "\n".join(x.text for x in check.paragraphs)
-bad = ["v2", "0→4", "3→4", "4/5", "2.7", "六项", "补强", "页面美观度", "smoke:v2", "smoke:spec", "A11y", "更新后的在线"]
+bad = ["v2", "0→4", "3→4", "4/5", "2.7", "六项", "补强", "页面美观度", "smoke:v2", "smoke:spec", "A11y", "更新后的在线", "76 秒", "7/7"]
 print("\n=== 残留检查 ===")
 for term in bad:
     print(f"{term}: {'FOUND' if term in text else 'clean'}")

@@ -2,7 +2,7 @@
 
 > 在线体验：https://expulsion-lifting-urging.ngrok-free.dev  
 > 源码：https://github.com/xxstar2216/vibecheck  
-> 提交人：`pxx`
+> 提交人：彭星星
 
 ## 1. 一句话定位
 
@@ -159,12 +159,13 @@ SQLite (node:sqlite)  → users / sessions / projects / shares / app_data
 
 ## 7. 完成度
 
-**实测（2026-11-11，deepseek-flash）**
+**实测（2026-11-12，deepseek-flash）**
 
 - Prompt：待办清单（添加 / 完成 / 删除 / 刷新后保留）
-- 首版未通过 → 自动修复 1 次 → **100/100，7/7 项验收通过**
-- 端到端约 76s（含两次生成 + 两次沙箱验收）
+- Spec 确认 → 流式生成 → **100/100，全部验收项通过**
+- 端到端约 42s（含 Spec、生成与沙箱验收；本次未触发自动修复）
 - 最终版本在独立沙箱复测：零控制台错误，刷新后数据仍在
+- 修复记录：8K 输出预算下 reasoning tokens 会挤占代码输出，导致 HTML 中途截断（`finish_reason=length`）；提升到 16K 后复测通过。自动修复链路保留，复杂失败仍可一键继续修复。
 
 **v2 补强（2026-11-12，根据面试反馈）**
 
@@ -200,6 +201,7 @@ SQLite (node:sqlite)  → users / sessions / projects / shares / app_data
 - 分享是公开快照：没有权限管理、撤回、密码
 - 账号没有邮箱验证、找回密码、第三方登录
 - SQLite 是单实例文件库，适合本地/VPS；Serverless 需换 Postgres
+- 在线 Demo 走本机 + ngrok 临时隧道：依赖本机在线，首次加载可能较慢，评审期间需保持隧道在线；长期应迁 VPS
 - 没有多人协作、真实部署生成物
 - 单文件生成，不支持多文件工程与依赖
 
@@ -224,13 +226,13 @@ SQLite (node:sqlite)  → users / sessions / projects / shares / app_data
 9. 生成物一键部署（Vercel API）
 10. 线上遥测：生成耗时、失败分类、逃逸缺陷
 
-## 9. AI 协作说明（提交前补充）
+## 9. AI 协作说明
 
-- 使用的工具与版本：`<Cursor / Claude Code / Codex / ...>`
-- 模型与账单：`<xxx 刀/月，附截图>`
-- 我让 AI 做了什么：脚手架、组件、提示词初稿、测试脚本
-- **我否决了 AI 的哪些建议**：`<例如：不加 allow-same-origin；不做登录；不做多文件；只修一轮>`
-- 我手动修的关键问题：`<例如：opaque origin 下 localStorage 不可用；流式预览抖动；Vercel 函数超时>`
+- 使用的工具与版本：Claude Code（Anthropic）+ DeepSeek API
+- 模型与账单：Claude Code 订阅 + DeepSeek API 按量计费（可选附账单截图）
+- 我让 AI 做了什么：脚手架、组件、提示词初稿、测试脚本；关键取舍由我确定
+- **我否决了 AI 的哪些建议**：不加 `allow-same-origin`；不做多文件工程；不做无限修复；登录/数据库在早期因时间取舍暂缓，现已补上
+- 我手动修的关键问题：opaque origin 下 localStorage 不可用（改为 postMessage 存储桥）；流式预览抖动；验收等待 `load` 被外部资源卡住（改为 `DOMContentLoaded` + 3s 上限）；reasoning token 挤占 8K 输出预算导致截断（提升到 16K 并复测）
 
 ## 10. 评分维度对照
 

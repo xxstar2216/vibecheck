@@ -48,5 +48,9 @@ next-env.d.ts
 /docs/*.local.md
 /scripts/*.html
 
+# local demo ops (machine-specific autostart/watchdog scripts)
+/scripts/ops/
+/scripts/push-via-api.mjs
+
 # local server database
 /data/

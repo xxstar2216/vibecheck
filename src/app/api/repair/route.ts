@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         { role: "system", content: buildRepairSystem() },
         { role: "user", content: buildRepairUser({ spec, code, failures }) },
       ],
-      { temperature: 0.3, maxTokens: 8000 },
+      { temperature: 0.3, maxTokens: 16000 },
     );
     return new Response(stream, {
       headers: {
